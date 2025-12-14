@@ -1,0 +1,77 @@
+# llama.cpp CUDA build stage
+ARG UBUNTU_VERSION=22.04
+ARG CUDA_VERSION=12.6.0
+
+# ランタイム用コンテナにも「libmtmd.so.0」が必要となるため、一旦手っ取り早くランタイム側のコンテナにもdevelを使ってしまう。
+ARG BASE_CUDA_DEV_CONTAINER=nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION}
+ARG BASE_CUDA_RUN_CONTAINER=nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION}
+
+FROM ${BASE_CUDA_DEV_CONTAINER} AS build
+
+# 任意: アーキテクチャを GB10 相当に絞りたい場合は設定
+# ARG CUDA_DOCKER_ARCH="90"  # 例: Ada/Lovelace 世代など。GB10 に合わせて調整。
+ARG CUDA_DOCKER_ARCH="default"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git build-essential cmake python3 python3-pip \
+        libcurl4-openssl-dev libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# llama.cpp をクローン
+RUN git clone https://github.com/ggml-org/llama.cpp.git . && \
+    git submodule update --init --recursive
+
+# CUDA 対応でビルド
+RUN if [ "${CUDA_DOCKER_ARCH}" != "default" ]; then \
+        export CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=${CUDA_DOCKER_ARCH}"; \
+    fi && \
+    cmake -B build \
+        -DGGML_NATIVE=OFF \
+        -DGGML_CUDA=ON \
+        -DLLAMA_CURL=ON \
+        ${CMAKE_ARGS} \
+        -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined . && \
+    cmake --build build --config Release -j"$(nproc)"
+
+RUN ldd /app/build/bin/llama-server || true
+
+# runtime stage
+FROM ${BASE_CUDA_RUN_CONTAINER} AS server
+
+ENV LLAMA_ARG_HOST=0.0.0.0
+ENV TZ=Asia/Tokyo
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libgomp1 curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# llama-server バイナリのみコピー
+COPY --from=build /app/build/bin/llama-server /app/llama-server
+
+# 依存 SO をまとめてコピー
+COPY --from=build /app/build/bin/libmtmd.so.0       /usr/local/lib/libmtmd.so.0
+COPY --from=build /app/build/bin/libllama.so.0      /usr/local/lib/libllama.so.0
+COPY --from=build /app/build/bin/libggml.so.0       /usr/local/lib/libggml.so.0
+COPY --from=build /app/build/bin/libggml-base.so.0  /usr/local/lib/libggml-base.so.0
+COPY --from=build /app/build/bin/libggml-cpu.so.0   /usr/local/lib/libggml-cpu.so.0
+COPY --from=build /app/build/bin/libggml-cuda.so.0  /usr/local/lib/libggml-cuda.so.0
+
+# ライブラリパス更新
+RUN ldconfig
+
+# ヘルスチェック (任意)
+HEALTHCHECK CMD [ "curl", "-f", "http://localhost:8080/health" ]
+
+# モデルをマウントする前提なので /models を作成
+RUN mkdir -p /models
+
+# デフォルトのポートなど
+EXPOSE 8080
+
+ENTRYPOINT ["/app/llama-server"]
