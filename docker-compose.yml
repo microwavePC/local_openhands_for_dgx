@@ -41,11 +41,13 @@ services:
     platform: linux/arm64
     # 実行環境がARMなので、公式（multi-arch）の OpenHands 本体イメージを digest 固定
     image: docker.all-hands.dev/all-hands-ai/openhands:latest@sha256:be67dfe3fb76f2312697bb79cb0b4620a03b266e75be9c953a47d818367df531
+    env_file:
+      - .env
     environment:
       TZ: Asia/Tokyo
-      LLM_BASE_URL: "http://llama-server:8080/v1"
-      LLM_API_KEY: "dummy-key"
-      LLM_MODEL: "devstral-small-2505"
+      # LLM_BASE_URL: "http://llama-server:8080/v1"
+      # LLM_API_KEY: "dummy-key"
+      # LLM_MODEL: "devstral-small-2505"
       LLM_DROP_PARAMS: "true"
 
       # まずは“勝手に実行しない”運用
@@ -55,14 +57,17 @@ services:
       # SANDBOX_RUNTIME_CONTAINER_IMAGE: local/openhands-runtime:arm64-v1
       SANDBOX_USER_ID: "${HOST_UID:-1000}"
       SANDBOX_VOLUMES: "${HOME}/workspace:/workspace:rw"
-      SANDBOX_RUNTIME_BINDING_ADDRESS: "127.0.0.1"
+      # SANDBOX_RUNTIME_BINDING_ADDRESS: "127.0.0.1"
     volumes:
-      - ${HOME}/.openhands:/.openhands
+      - ${OPENHANDS_CONFIG_DIR:-${HOME}/.openhands}:/.openhands
+      - /usr/bin/docker:/usr/bin/docker:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - llama-server
+      llama-server:
+        condition: service_healthy
     ports:
       - "3000:3000"
     restart: unless-stopped
