@@ -57,7 +57,8 @@ services:
       # SANDBOX_RUNTIME_CONTAINER_IMAGE: local/openhands-runtime:arm64-v1
       SANDBOX_USER_ID: "${HOST_UID:-1000}"
       SANDBOX_VOLUMES: "${HOME}/workspace:/workspace:rw"
-      # SANDBOX_RUNTIME_BINDING_ADDRESS: "127.0.0.1"
+      SANDBOX_RUNTIME_BINDING_ADDRESS: "0.0.0.0"
+      SANDBOX_VSCODE_PORT: "46520"
     volumes:
       - ${OPENHANDS_CONFIG_DIR:-${HOME}/.openhands}:/.openhands
       - /usr/bin/docker:/usr/bin/docker:ro

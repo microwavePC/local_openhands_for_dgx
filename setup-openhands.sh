@@ -18,6 +18,7 @@ fi
 # 利用者が上書きしたい場合の逃げ道
 PUBLIC_HOST="${OPENHANDS_PUBLIC_HOST:-$PUBLIC_HOST_DEFAULT}"
 
+rm -f ./.env
 cat > .env <<EOF
 HOST_UID=$(id -u)
 HOST_GID=$(id -g)

@@ -42,7 +42,7 @@
     | 項目名 | 設定する値 | 備考 |
     | --- | --- | --- |
     | Advanced | ONにする |  |
-    | Custom Model | devstral-small-2505 |  |
+    | Custom Model | openai/devstral-small-2505 | 先頭の「openai/」は、OpenAI互換であるllama-serverへルーティングさせるために必須となる。 |
     | Base URL | http://llama-server:8080/v1 |  |
     | API Key | dummy-key | 実質的には任意の文字列で問題ない。 |
     | Search API Key (Tavily) | デフォルト値 | Tavilyを使ったWeb検索機能を使用する場合に必要となる。 |
